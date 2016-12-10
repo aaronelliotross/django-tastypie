@@ -954,26 +954,31 @@ class Resource(six.with_metaclass(DeclarativeMetaclass)):
                 if isinstance(value, Bundle) and value.errors.get(field_name):
                     bundle.errors[field_name] = value.errors[field_name]
 
-                if value is not None or field_object.null:
+                if value is not None:
                     # We need to avoid populating M2M data here as that will
                     # cause things to blow up.
                     if not field_object.is_related:
                         setattr(bundle.obj, field_object.attribute, value)
                     elif not field_object.is_m2m:
-                        if value is not None:
-                            # NOTE: A bug fix in Django (ticket #18153) fixes incorrect behavior
-                            # which Tastypie was relying on.  To fix this, we store value.obj to
-                            # be saved later in save_related.
-                            try:
-                                setattr(bundle.obj, field_object.attribute, value.obj)
-                            except (ValueError, ObjectDoesNotExist):
-                                bundle.related_objects_to_save[field_object.attribute] = value.obj
-                        elif field_object.blank:
-                            continue
-                        elif field_object.null and field_name in bundle.data:
-                            if not isinstance(getattr(bundle.obj.__class__, field_object.attribute, None), ReverseOneToOneDescriptor):
+                        # NOTE: A bug fix in Django (ticket #18153) fixes incorrect behavior
+                        # which Tastypie was relying on.  To fix this, we store value.obj to
+                        # be saved later in save_related.
+                        try:
+                            setattr(bundle.obj, field_object.attribute, value.obj)
+                        except (ValueError, ObjectDoesNotExist):
+                            bundle.related_objects_to_save[field_object.attribute] = value.obj
+
+                else:
+                    if field_object.blank:
+                        continue
+
+                    if field_object.null:
+                        if field_object.is_related and not field_object.is_m2m:
+                            if field_name in bundle.data:
                                 # only update if not a reverse one to one field
-                                setattr(bundle.obj, field_object.attribute, value)
+                                if not isinstance(getattr(bundle.obj.__class__, field_object.attribute, None),
+                                                ReverseOneToOneDescriptor):
+                                    setattr(bundle.obj, field_object.attribute, value)
 
         return bundle
 
